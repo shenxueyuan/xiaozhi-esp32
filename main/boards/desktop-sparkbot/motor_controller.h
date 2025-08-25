@@ -37,7 +37,7 @@ public:
     void ExpressAngry(int intensity = 3);
     void ExpressSurprised(int intensity = 2);
     void ExpressThinking(int intensity = 1);
-    void ExpressNeutral();
+    void ExpressNeutral(int intensity = 1);
 
     // 停止所有电机
     void StopAll();

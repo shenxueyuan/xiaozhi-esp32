@@ -3,6 +3,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <algorithm>
+#include <cstring>
 
 static const char* TAG = "EmotionActionController";
 

@@ -287,7 +287,7 @@ private:
             PropertyList({
                 Property("emotion", kPropertyTypeString),
                 Property("intensity", kPropertyTypeInteger, 1, 3, 2),
-                Property("enable_motion", kPropertyTypeBool, true)
+                Property("enable_motion", kPropertyTypeBoolean, true)
             }),
             [this](const PropertyList& properties) -> ReturnValue {
                 std::string emotion = properties["emotion"].value<std::string>();
@@ -304,13 +304,14 @@ private:
 
         mcp_server.AddTool("self.desktop.motion_config", "配置动作响应",
             PropertyList({
-                Property("enabled", kPropertyTypeBool),
-                Property("intensity_scale", kPropertyTypeNumber, 0.1, 2.0, 1.0)
+                Property("enabled", kPropertyTypeBoolean),
+                Property("intensity_scale", kPropertyTypeInteger, 1, 3, 2)
             }),
             [this](const PropertyList& properties) -> ReturnValue {
                 if (emotion_controller_) {
                     bool enabled = properties["enabled"].value<bool>();
-                    float scale = properties["intensity_scale"].value<float>();
+                    int scale_int = properties["intensity_scale"].value<int>();
+                    float scale = scale_int / 2.0f; // 转换为0.5, 1.0, 1.5
 
                     emotion_controller_->SetMotionEnabled(enabled);
                     emotion_controller_->SetMotionIntensityScale(scale);
@@ -343,7 +344,7 @@ public:
         delete emotion_controller_;
         delete motor_controller_;
         delete display_;
-        delete camera_;
+        // camera_已经在基类析构函数中被处理了
     }
 
     virtual AudioCodec* GetAudioCodec() override {
@@ -369,7 +370,7 @@ public:
     }
 
     // 重写表情设置方法，集成动作响应
-    virtual void SetEmotion(const char* emotion) override {
+    virtual void SetEmotion(const char* emotion) {
         if (emotion_controller_) {
             emotion_controller_->OnEmotionChanged(emotion);
         }

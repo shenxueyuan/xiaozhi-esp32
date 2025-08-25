@@ -46,8 +46,8 @@ void MotorController::InitializePWM() {
     // 配置LEDC定时器
     ledc_timer_config_t ledc_timer = {
         .speed_mode = LEDC_LOW_SPEED_MODE,
-        .timer_num = MOTOR_PWM_TIMER,
         .duty_resolution = MOTOR_PWM_RESOLUTION,
+        .timer_num = MOTOR_PWM_TIMER,
         .freq_hz = MOTOR_PWM_FREQUENCY,
         .clk_cfg = LEDC_AUTO_CLK
     };
@@ -180,11 +180,12 @@ void MotorController::ExpressThinking(int intensity) {
     HeadNod(intensity, MOTOR_SMOOTH_SPEED);
 }
 
-void MotorController::ExpressNeutral() {
-    ESP_LOGI(TAG, "执行中性表情动作");
-    // 回到中心位置
-    HeadCenter(MOTOR_SMOOTH_SPEED);
-    BodyCenter(MOTOR_SMOOTH_SPEED);
+void MotorController::ExpressNeutral(int intensity) {
+    ESP_LOGI(TAG, "执行中性表情动作，强度: %d", intensity);
+    // 回到中心位置，强度影响速度
+    int speed = intensity <= 1 ? MOTOR_SMOOTH_SPEED : MOTOR_DEFAULT_SPEED;
+    HeadCenter(speed);
+    BodyCenter(speed);
 }
 
 void MotorController::StopAll() {
@@ -332,7 +333,7 @@ void MotorController::RegisterMcpTools() {
             } else if (emotion == "thinking") {
                 ExpressThinking(intensity);
             } else if (emotion == "neutral") {
-                ExpressNeutral();
+                ExpressNeutral(intensity);
             }
 
             return true;
