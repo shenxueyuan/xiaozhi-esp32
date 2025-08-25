@@ -5,13 +5,8 @@
 #include <unordered_map>
 #include <string>
 
-// 声明GIF资源（需要准备全屏尺寸的GIF）
-LV_IMAGE_DECLARE(fullscreen_neutral);
-LV_IMAGE_DECLARE(fullscreen_happy);
-LV_IMAGE_DECLARE(fullscreen_sad);
-LV_IMAGE_DECLARE(fullscreen_angry);
-LV_IMAGE_DECLARE(fullscreen_surprised);
-LV_IMAGE_DECLARE(fullscreen_thinking);
+// 复用Otto Robot的GIF表情资源
+#include <otto_emoji_gif.h>
 
 class FullscreenEmojiDisplay : public SpiLcdDisplay {
 public:

@@ -4,40 +4,40 @@
 
 static const char* TAG = "FullscreenEmojiDisplay";
 
-// 表情GIF映射表 - 全屏显示
+// 表情GIF映射表 - 复用Otto Robot的6个GIF表情，全屏显示
 const FullscreenEmojiDisplay::EmotionGifMap FullscreenEmojiDisplay::emotion_gif_maps_[] = {
-    // 中性/平静类
-    {"neutral", &fullscreen_neutral, 15},
-    {"relaxed", &fullscreen_neutral, 10},
-    {"sleepy", &fullscreen_neutral, 8},
+    // 中性/平静类 -> staticstate
+    {"neutral", &staticstate, 15},
+    {"relaxed", &staticstate, 10},
+    {"sleepy", &staticstate, 8},
 
-    // 积极/开心类
-    {"happy", &fullscreen_happy, 25},
-    {"laughing", &fullscreen_happy, 30},
-    {"funny", &fullscreen_happy, 30},
-    {"loving", &fullscreen_happy, 20},
-    {"confident", &fullscreen_happy, 25},
-    {"winking", &fullscreen_happy, 15},
-    {"cool", &fullscreen_happy, 20},
-    {"delicious", &fullscreen_happy, 25},
-    {"kissy", &fullscreen_happy, 20},
-    {"silly", &fullscreen_happy, 30},
+    // 积极/开心类 -> happy
+    {"happy", &happy, 25},
+    {"laughing", &happy, 30},
+    {"funny", &happy, 30},
+    {"loving", &happy, 20},
+    {"confident", &happy, 25},
+    {"winking", &happy, 15},
+    {"cool", &happy, 20},
+    {"delicious", &happy, 25},
+    {"kissy", &happy, 20},
+    {"silly", &happy, 30},
 
-    // 悲伤类
-    {"sad", &fullscreen_sad, 15},
-    {"crying", &fullscreen_sad, 20},
+    // 悲伤类 -> sad
+    {"sad", &sad, 15},
+    {"crying", &sad, 20},
 
-    // 愤怒类
-    {"angry", &fullscreen_angry, 30},
+    // 愤怒类 -> anger
+    {"angry", &anger, 30},
 
-    // 惊讶类
-    {"surprised", &fullscreen_surprised, 25},
-    {"shocked", &fullscreen_surprised, 30},
+    // 惊讶类 -> scare
+    {"surprised", &scare, 25},
+    {"shocked", &scare, 30},
 
-    // 思考/困惑类
-    {"thinking", &fullscreen_thinking, 10},
-    {"confused", &fullscreen_thinking, 12},
-    {"embarrassed", &fullscreen_thinking, 15},
+    // 思考/困惑类 -> buxue
+    {"thinking", &buxue, 10},
+    {"confused", &buxue, 12},
+    {"embarrassed", &buxue, 15},
 
     {nullptr, nullptr, 0}  // 结束标记
 };
@@ -109,7 +109,7 @@ void FullscreenEmojiDisplay::SetEmotion(const char* emotion) {
     }
 
     // 未找到匹配表情，使用默认中性表情
-    PlayGifEmotion(&fullscreen_neutral, 15);
+    PlayGifEmotion(&staticstate, 15);
     ESP_LOGW(TAG, "未知表情 '%s'，使用默认中性表情", emotion);
 }
 
