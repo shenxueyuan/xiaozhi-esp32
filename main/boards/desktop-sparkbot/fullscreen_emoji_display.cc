@@ -74,7 +74,7 @@ void FullscreenEmojiDisplay::SetupFullscreenGifContainer() {
     lv_obj_set_pos(fullscreen_gif_, 0, 0);
 
     // 设置默认表情
-    lv_gif_set_src(fullscreen_gif_, &fullscreen_neutral);
+    lv_gif_set_src(fullscreen_gif_, &staticstate);
 
     // 设置深色主题（适合桌面机器人）
     SetTheme("dark");
