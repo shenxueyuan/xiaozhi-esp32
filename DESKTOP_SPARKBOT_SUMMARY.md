@@ -5,7 +5,7 @@
 **✨ 已成功创建完整的桌面机器人实现！**
 
 - 📅 **创建时间**: 2024年12月25日
-- 🌿 **分支**: `feature/desktop-sparkbot-robot`  
+- 🌿 **分支**: `feature/desktop-sparkbot-robot`
 - 📦 **提交**: `440c57a` - 新增desktop-sparkbot桌面机器人板卡
 - 📁 **位置**: `main/boards/desktop-sparkbot/`
 
@@ -109,7 +109,7 @@ idf.py flash monitor
 {
   "type": "mcp",
   "payload": {
-    "method": "tools/call", 
+    "method": "tools/call",
     "params": {
       "name": "self.head.up_down",
       "arguments": {"angle": 30, "speed": 400}
@@ -126,7 +126,7 @@ idf.py flash monitor
 
 ### 3️⃣ MCP工具接口
 - `self.head.up_down` - 头部上下转动控制
-- `self.body.left_right` - 身体左右转动控制  
+- `self.body.left_right` - 身体左右转动控制
 - `self.emotion.express` - 情绪动作表达
 - `self.desktop.set_emotion_with_action` - 设置表情并执行动作
 - `self.desktop.motion_config` - 配置动作响应参数
@@ -180,7 +180,7 @@ idf.py flash monitor
 - [ ] 优化电机驱动模块选择
 - [ ] 添加电流检测防止堵转
 
-### 💻 软件优化  
+### 💻 软件优化
 - [ ] 实现更平滑的运动曲线算法
 - [ ] 添加表情切换过渡动画
 - [ ] 优化GIF内存使用
@@ -206,6 +206,6 @@ idf.py flash monitor
 
 ---
 
-*项目创建时间: 2024年12月25日*  
-*技术栈: ESP32-S3 + ESP-IDF + LVGL + FreeRTOS*  
+*项目创建时间: 2024年12月25日*
+*技术栈: ESP32-S3 + ESP-IDF + LVGL + FreeRTOS*
 *基于: xiaozhi-esp32 v1.8.8*

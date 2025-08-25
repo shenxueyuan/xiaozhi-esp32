@@ -10,7 +10,7 @@ const FullscreenEmojiDisplay::EmotionGifMap FullscreenEmojiDisplay::emotion_gif_
     {"neutral", &fullscreen_neutral, 15},
     {"relaxed", &fullscreen_neutral, 10},
     {"sleepy", &fullscreen_neutral, 8},
-    
+
     // 积极/开心类
     {"happy", &fullscreen_happy, 25},
     {"laughing", &fullscreen_happy, 30},
@@ -22,23 +22,23 @@ const FullscreenEmojiDisplay::EmotionGifMap FullscreenEmojiDisplay::emotion_gif_
     {"delicious", &fullscreen_happy, 25},
     {"kissy", &fullscreen_happy, 20},
     {"silly", &fullscreen_happy, 30},
-    
+
     // 悲伤类
     {"sad", &fullscreen_sad, 15},
     {"crying", &fullscreen_sad, 20},
-    
+
     // 愤怒类
     {"angry", &fullscreen_angry, 30},
-    
+
     // 惊讶类
     {"surprised", &fullscreen_surprised, 25},
     {"shocked", &fullscreen_surprised, 30},
-    
+
     // 思考/困惑类
     {"thinking", &fullscreen_thinking, 10},
     {"confused", &fullscreen_thinking, 12},
     {"embarrassed", &fullscreen_thinking, 15},
-    
+
     {nullptr, nullptr, 0}  // 结束标记
 };
 
@@ -48,7 +48,7 @@ FullscreenEmojiDisplay::FullscreenEmojiDisplay(esp_lcd_panel_io_handle_t panel_i
     : SpiLcdDisplay(panel_io, panel, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, fonts)
     , fullscreen_gif_(nullptr)
     , current_intensity_(2) {
-    
+
     SetupFullscreenGifContainer();
     ESP_LOGI(TAG, "全屏表情显示系统初始化完成 - 尺寸: %dx%d", width, height);
 }
@@ -61,24 +61,24 @@ FullscreenEmojiDisplay::~FullscreenEmojiDisplay() {
 
 void FullscreenEmojiDisplay::SetupFullscreenGifContainer() {
     DisplayLockGuard lock(this);
-    
+
     // 创建全屏GIF容器
     fullscreen_gif_ = lv_gif_create(lv_screen_active());
     if (!fullscreen_gif_) {
         ESP_LOGE(TAG, "创建全屏GIF容器失败");
         return;
     }
-    
+
     // 设置为全屏尺寸
     lv_obj_set_size(fullscreen_gif_, width_, height_);
     lv_obj_set_pos(fullscreen_gif_, 0, 0);
-    
+
     // 设置默认表情
     lv_gif_set_src(fullscreen_gif_, &fullscreen_neutral);
-    
+
     // 设置深色主题（适合桌面机器人）
     SetTheme("dark");
-    
+
     ESP_LOGI(TAG, "全屏GIF容器设置完成");
 }
 
@@ -87,9 +87,9 @@ void FullscreenEmojiDisplay::SetEmotion(const char* emotion) {
         ESP_LOGW(TAG, "设置表情失败 - emotion: %p, gif: %p", emotion, fullscreen_gif_);
         return;
     }
-    
+
     DisplayLockGuard lock(this);
-    
+
     // 查找匹配的表情GIF
     for (const auto& map : emotion_gif_maps_) {
         if (map.name && strcmp(map.name, emotion) == 0) {
@@ -101,13 +101,13 @@ void FullscreenEmojiDisplay::SetEmotion(const char* emotion) {
                 case 3: fps = fps * 1.5; break;  // 快速
                 default: fps = fps; break;
             }
-            
+
             PlayGifEmotion(map.gif, fps);
             ESP_LOGI(TAG, "设置全屏表情: %s (FPS: %d, 强度: %d)", emotion, fps, current_intensity_);
             return;
         }
     }
-    
+
     // 未找到匹配表情，使用默认中性表情
     PlayGifEmotion(&fullscreen_neutral, 15);
     ESP_LOGW(TAG, "未知表情 '%s'，使用默认中性表情", emotion);
@@ -117,7 +117,7 @@ void FullscreenEmojiDisplay::SetStatus(const char* status) {
     if (!status || !fullscreen_gif_) {
         return;
     }
-    
+
     // 可以根据状态显示特定的表情或动画
     if (strcmp(status, "待机") == 0 || strcmp(status, "STANDBY") == 0) {
         SetEmotion("neutral");
@@ -132,14 +132,14 @@ void FullscreenEmojiDisplay::PlayGifEmotion(const lv_image_dsc_t* gif_data, int 
     if (!gif_data || !fullscreen_gif_) {
         return;
     }
-    
+
     // 设置GIF源
     lv_gif_set_src(fullscreen_gif_, gif_data);
-    
+
     // 设置播放速度（通过修改GIF的播放参数）
     // 注意：LVGL的GIF控件可能需要特定的API来控制播放速度
     // 这里假设有相关API，实际使用时需要查看LVGL文档
-    
+
     ESP_LOGD(TAG, "播放全屏GIF表情，FPS: %d", fps);
 }
 

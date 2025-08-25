@@ -97,6 +97,11 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP_SPARKBOT
         bool "ESP-SparkBot开发板"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_DESKTOP_SPARKBOT
+        bool "Desktop SparkBot 桌面机器人"
+        depends on IDF_TARGET_ESP32S3
+        select LV_USE_GIF
+        select LV_GIF_CACHE_DECODE_DATA
     config BOARD_TYPE_ESP_SPOT_S3
         bool "ESP-Spot-S3"
         depends on IDF_TARGET_ESP32S3

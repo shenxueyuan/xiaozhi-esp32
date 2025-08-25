@@ -3,7 +3,7 @@
 
 static const char* TAG = "MotorController";
 
-MotorController::MotorController() 
+MotorController::MotorController()
     : current_head_angle_(0)
     , current_body_angle_(0)
     , is_moving_(false)
@@ -22,23 +22,23 @@ MotorController::~MotorController() {
 
 void MotorController::Initialize() {
     ESP_LOGI(TAG, "初始化电机控制器");
-    
+
     InitializePWM();
     InitializeGPIO();
-    
+
     // 创建电机控制队列
     motor_queue_ = xQueueCreate(10, sizeof(MotorCommand));
     if (!motor_queue_) {
         ESP_LOGE(TAG, "创建电机队列失败");
         return;
     }
-    
+
     // 创建电机控制任务
     xTaskCreate(MotorTask, "motor_task", 4096, this, 5, &motor_task_handle_);
-    
+
     // 注册MCP工具
     RegisterMcpTools();
-    
+
     ESP_LOGI(TAG, "电机控制器初始化完成");
 }
 
@@ -52,7 +52,7 @@ void MotorController::InitializePWM() {
         .clk_cfg = LEDC_AUTO_CLK
     };
     ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
-    
+
     // 配置头部电机PWM通道
     ledc_channel_config_t head_channel = {
         .gpio_num = HEAD_MOTOR_PWM_PIN,
@@ -63,7 +63,7 @@ void MotorController::InitializePWM() {
         .hpoint = 0
     };
     ESP_ERROR_CHECK(ledc_channel_config(&head_channel));
-    
+
     // 配置身体电机PWM通道
     ledc_channel_config_t body_channel = {
         .gpio_num = BODY_MOTOR_PWM_PIN,
@@ -87,7 +87,7 @@ void MotorController::InitializeGPIO() {
         .intr_type = GPIO_INTR_DISABLE
     };
     ESP_ERROR_CHECK(gpio_config(&io_conf));
-    
+
     // 初始状态停止
     gpio_set_level(HEAD_MOTOR_DIR1_PIN, 0);
     gpio_set_level(HEAD_MOTOR_DIR2_PIN, 0);
@@ -194,7 +194,7 @@ void MotorController::StopAll() {
 void MotorController::MotorTask(void* arg) {
     MotorController* controller = static_cast<MotorController*>(arg);
     MotorCommand cmd;
-    
+
     while (true) {
         if (xQueueReceive(controller->motor_queue_, &cmd, pdMS_TO_TICKS(1000)) == pdTRUE) {
             controller->ExecuteMotorCommand(cmd);
@@ -204,23 +204,23 @@ void MotorController::MotorTask(void* arg) {
 
 void MotorController::ExecuteMotorCommand(const MotorCommand& cmd) {
     is_moving_ = true;
-    
+
     switch (cmd.type) {
         case MotorCommand::HEAD_MOVE:
             MoveToAngle(true, cmd.target_angle, cmd.speed);
             current_head_angle_ = cmd.target_angle;
             break;
-            
+
         case MotorCommand::BODY_MOVE:
             MoveToAngle(false, cmd.target_angle, cmd.speed);
             current_body_angle_ = cmd.target_angle;
             break;
-            
+
         case MotorCommand::STOP_ALL:
             SetMotorPWM(HEAD_MOTOR_PWM_CHANNEL, 0);
             SetMotorPWM(BODY_MOTOR_PWM_CHANNEL, 0);
             break;
-            
+
         case MotorCommand::COMPLEX_ACTION:
             // 执行复杂动作（如点头）
             for (int i = 0; i < cmd.times; i++) {
@@ -233,7 +233,7 @@ void MotorController::ExecuteMotorCommand(const MotorCommand& cmd) {
             current_head_angle_ = 0;
             break;
     }
-    
+
     is_moving_ = false;
 }
 
@@ -241,22 +241,22 @@ void MotorController::MoveToAngle(bool is_head, int target_angle, int speed) {
     ledc_channel_t channel = is_head ? HEAD_MOTOR_PWM_CHANNEL : BODY_MOTOR_PWM_CHANNEL;
     gpio_num_t dir1_pin = is_head ? HEAD_MOTOR_DIR1_PIN : BODY_MOTOR_DIR1_PIN;
     gpio_num_t dir2_pin = is_head ? HEAD_MOTOR_DIR2_PIN : BODY_MOTOR_DIR2_PIN;
-    
+
     int current_angle = is_head ? current_head_angle_ : current_body_angle_;
     bool forward = target_angle > current_angle;
-    
+
     // 设置方向
     SetMotorDirection(dir1_pin, dir2_pin, forward);
-    
+
     // 启动电机
     SetMotorPWM(channel, speed);
-    
+
     // 计算运动时间（简化处理，实际应该使用编码器反馈）
     int angle_diff = abs(target_angle - current_angle);
     int move_time = angle_diff * 20; // 每度20ms
-    
+
     vTaskDelay(pdMS_TO_TICKS(move_time));
-    
+
     // 停止电机
     SetMotorPWM(channel, 0);
 }
@@ -284,9 +284,9 @@ void MotorController::QueueCommand(MotorCommand::Type type, int angle, int speed
 
 void MotorController::RegisterMcpTools() {
     auto& mcp_server = McpServer::GetInstance();
-    
+
     // 头部控制工具
-    mcp_server.AddTool("self.head.up_down", "头部上下转动", 
+    mcp_server.AddTool("self.head.up_down", "头部上下转动",
         PropertyList({
             Property("angle", kPropertyTypeInteger, HEAD_MIN_ANGLE, HEAD_MAX_ANGLE),
             Property("speed", kPropertyTypeInteger, MOTOR_MIN_SPEED, MOTOR_MAX_SPEED, MOTOR_DEFAULT_SPEED)
@@ -297,7 +297,7 @@ void MotorController::RegisterMcpTools() {
             HeadUpDown(angle, speed);
             return true;
         });
-    
+
     // 身体控制工具
     mcp_server.AddTool("self.body.left_right", "身体左右转动",
         PropertyList({
@@ -310,7 +310,7 @@ void MotorController::RegisterMcpTools() {
             BodyLeftRight(angle, speed);
             return true;
         });
-    
+
     // 情绪动作工具
     mcp_server.AddTool("self.emotion.express", "根据情绪执行动作",
         PropertyList({
@@ -320,7 +320,7 @@ void MotorController::RegisterMcpTools() {
         [this](const PropertyList& properties) -> ReturnValue {
             std::string emotion = properties["emotion"].value<std::string>();
             int intensity = properties["intensity"].value<int>();
-            
+
             if (emotion == "happy") {
                 ExpressHappy(intensity);
             } else if (emotion == "sad") {
@@ -334,7 +334,7 @@ void MotorController::RegisterMcpTools() {
             } else if (emotion == "neutral") {
                 ExpressNeutral();
             }
-            
+
             return true;
         });
 }

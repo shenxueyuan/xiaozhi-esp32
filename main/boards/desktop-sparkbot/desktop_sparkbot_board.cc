@@ -9,6 +9,7 @@
 #include "mcp_server.h"
 #include "settings.h"
 #include "font_awesome_symbols.h"
+#include <font_emoji.h>
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -107,17 +108,17 @@ private:
         panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
         panel_config.bits_per_pixel = 16;
         ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel));
-        
+
         esp_lcd_panel_reset(panel);
         esp_lcd_panel_init(panel);
         esp_lcd_panel_invert_color(panel, true);
         esp_lcd_panel_disp_on_off(panel, true);
-        
+
         // 创建全屏表情显示
         display_ = new FullscreenEmojiDisplay(panel_io, panel,
-                                            DISPLAY_WIDTH, DISPLAY_HEIGHT, 
-                                            DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, 
-                                            DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, 
+                                            DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                                            DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y,
+                                            DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y,
                                             DISPLAY_SWAP_XY,
                                             {
                                                 .text_font = &font_puhui_20_4,
@@ -174,17 +175,17 @@ private:
         camera_config.ledc_timer = SPARKBOT_LEDC_TIMER;
         camera_config.ledc_channel = SPARKBOT_LEDC_CHANNEL;
         camera_config.fb_location = CAMERA_FB_IN_PSRAM;
-        
+
         camera_config.sccb_i2c_port = I2C_NUM_0;
-        
+
         camera_config.pixel_format = PIXFORMAT_RGB565;
         camera_config.frame_size = FRAMESIZE_240X240;
         camera_config.jpeg_quality = 12;
         camera_config.fb_count = 1;
         camera_config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
-        
+
         camera_ = new Esp32Camera(camera_config);
-        
+
         Settings settings("desktop-sparkbot", false);
         bool camera_flipped = static_cast<bool>(settings.GetInt("camera-flipped", 1));
         camera_->SetHMirror(camera_flipped);
@@ -217,7 +218,7 @@ private:
 
     void InitializeTools() {
         auto& mcp_server = McpServer::GetInstance();
-        
+
         // 继承原有的底盘控制工具
         mcp_server.AddTool("self.chassis.get_light_mode", "获取灯光效果编号", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
             if (light_mode_ < 2) {
@@ -246,7 +247,7 @@ private:
             SendUartMessage("x1.0 y0.0");
             return true;
         });
-        
+
         mcp_server.AddTool("self.chassis.dance", "跳舞", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
             SendUartMessage("d1");
             light_mode_ = LIGHT_MODE_MAX;
@@ -272,15 +273,15 @@ private:
         mcp_server.AddTool("self.camera.set_camera_flipped", "翻转摄像头图像方向", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
             Settings settings("desktop-sparkbot", true);
             bool flipped = !static_cast<bool>(settings.GetInt("camera-flipped", 1));
-            
+
             camera_->SetHMirror(flipped);
             camera_->SetVFlip(flipped);
-            
+
             settings.SetInt("camera-flipped", flipped ? 1 : 0);
-            
+
             return true;
         });
-        
+
         // 新增桌面机器人专用工具
         mcp_server.AddTool("self.desktop.set_emotion_with_action", "设置表情并执行动作",
             PropertyList({
@@ -292,15 +293,15 @@ private:
                 std::string emotion = properties["emotion"].value<std::string>();
                 int intensity = properties["intensity"].value<int>();
                 bool enable_motion = properties["enable_motion"].value<bool>();
-                
+
                 if (emotion_controller_) {
                     emotion_controller_->SetMotionEnabled(enable_motion);
                     emotion_controller_->OnEmotionChanged(emotion.c_str(), intensity);
                 }
-                
+
                 return true;
             });
-            
+
         mcp_server.AddTool("self.desktop.motion_config", "配置动作响应",
             PropertyList({
                 Property("enabled", kPropertyTypeBool),
@@ -310,11 +311,11 @@ private:
                 if (emotion_controller_) {
                     bool enabled = properties["enabled"].value<bool>();
                     float scale = properties["intensity_scale"].value<float>();
-                    
+
                     emotion_controller_->SetMotionEnabled(enabled);
                     emotion_controller_->SetMotionIntensityScale(scale);
                 }
-                
+
                 return true;
             });
     }
@@ -322,7 +323,7 @@ private:
 public:
     DesktopSparkBot() : boot_button_(BOOT_BUTTON_GPIO) {
         ESP_LOGI(TAG, "初始化桌面SparkBot机器人");
-        
+
         InitializeI2c();
         InitializeSpi();
         InitializeDisplay();
@@ -332,9 +333,9 @@ public:
         InitializeMotorController();
         InitializeEmotionController();
         InitializeTools();
-        
+
         GetBacklight()->RestoreBrightness();
-        
+
         ESP_LOGI(TAG, "桌面SparkBot机器人初始化完成");
     }
 
@@ -346,9 +347,9 @@ public:
     }
 
     virtual AudioCodec* GetAudioCodec() override {
-         static DesktopSparkBotEs8311AudioCodec audio_codec(i2c_bus_, I2C_NUM_0, 
+         static DesktopSparkBotEs8311AudioCodec audio_codec(i2c_bus_, I2C_NUM_0,
             AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-            AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, 
+            AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS,
             AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
             AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR);
         return &audio_codec;
@@ -366,7 +367,7 @@ public:
     virtual Camera* GetCamera() override {
         return camera_;
     }
-    
+
     // 重写表情设置方法，集成动作响应
     virtual void SetEmotion(const char* emotion) override {
         if (emotion_controller_) {

@@ -103,7 +103,7 @@ idf.py monitor
   "payload": {
     "method": "tools/call",
     "params": {
-      "name": "self.body.left_right", 
+      "name": "self.body.left_right",
       "arguments": {"angle": -45, "speed": 400}
     }
   }
@@ -120,7 +120,7 @@ idf.py monitor
 
 # 愤怒表情 + 动作
 {
-  "type": "llm", 
+  "type": "llm",
   "emotion": "angry"
 }
 ```
