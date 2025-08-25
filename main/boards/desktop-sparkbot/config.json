@@ -1,0 +1,23 @@
+{
+    "name": "desktop-sparkbot",
+    "display_name": "桌面SparkBot机器人",
+    "description": "基于ESP-SparkBot扩展的桌面小机器人，支持全屏表情显示和减速电机动作控制",
+    "features": [
+        "fullscreen_emoji_display",
+        "motor_control",
+        "emotion_actions",
+        "camera",
+        "audio_codec",
+        "wifi",
+        "mcp_tools"
+    ],
+    "hardware": {
+        "chip": "ESP32-S3",
+        "flash_size": "16MB",
+        "psram": "8MB",
+        "display": "240x240 ST7789",
+        "audio_codec": "ES8311",
+        "camera": "OV3660",
+        "motors": "2x减速电机"
+    }
+}
