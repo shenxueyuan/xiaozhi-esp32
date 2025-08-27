@@ -55,23 +55,29 @@
 #define ECHO_UART_BAUD_RATE     (115200)
 #define BUF_SIZE                (1024)
 
-// 新增减速电机配置
+// 新增减速电机配置（简化版：每个电机2个引脚控制）
 // 头部上下转动电机
-#define HEAD_MOTOR_PWM_PIN     GPIO_NUM_1   // 头部电机PWM
-#define HEAD_MOTOR_DIR1_PIN    GPIO_NUM_2   // 头部电机方向1
-#define HEAD_MOTOR_DIR2_PIN    GPIO_NUM_3   // 头部电机方向2
+#define HEAD_MOTOR_PIN1        GPIO_NUM_1   // 头部电机引脚1
+#define HEAD_MOTOR_PIN2        GPIO_NUM_2   // 头部电机引脚2
 
 // 身体左右转动电机
-#define BODY_MOTOR_PWM_PIN     GPIO_NUM_14  // 身体电机PWM
-#define BODY_MOTOR_DIR1_PIN    GPIO_NUM_19  // 身体电机方向1
-#define BODY_MOTOR_DIR2_PIN    GPIO_NUM_20  // 身体电机方向2
+#define BODY_MOTOR_PIN1        GPIO_NUM_14  // 身体电机引脚1
+#define BODY_MOTOR_PIN2        GPIO_NUM_3   // 身体电机引脚2
 
-// 电机控制参数
-#define MOTOR_PWM_FREQUENCY    1000         // PWM频率 1KHz
-#define MOTOR_PWM_RESOLUTION   LEDC_TIMER_10_BIT  // 10位分辨率 (0-1023)
-#define MOTOR_MAX_SPEED        800          // 最大速度 (0-1023)
-#define MOTOR_MIN_SPEED        200          // 最小速度
-#define MOTOR_STOP_SPEED       0            // 停止速度
+// 步进电机控制模式定义
+#define MOTOR_STOP             0            // 停止: 00
+#define MOTOR_FORWARD          1            // 正转: 01
+#define MOTOR_BACKWARD         2            // 反转: 10
+
+// 步进电机速度等级（根据情绪区分）
+#define MOTOR_SPEED_SLOW       1            // 慢速：平静、思考、待机
+#define MOTOR_SPEED_NORMAL     2            // 中速：开心、悲伤
+#define MOTOR_SPEED_FAST       3            // 快速：愤怒、惊讶
+
+// 步进电机脉冲间隔（毫秒）- 间隔越小速度越快
+#define STEPPER_DELAY_SLOW     50           // 慢速：50ms间隔
+#define STEPPER_DELAY_NORMAL   25           // 中速：25ms间隔
+#define STEPPER_DELAY_FAST     10           // 快速：10ms间隔
 
 // 电机角度限制
 #define HEAD_MIN_ANGLE         -45          // 头部最小角度（向下）
@@ -79,15 +85,11 @@
 #define BODY_MIN_ANGLE         -90          // 身体最小角度（向左）
 #define BODY_MAX_ANGLE         90           // 身体最大角度（向右）
 
-// 电机运动参数
-#define MOTOR_DEFAULT_SPEED    400          // 默认运动速度
-#define MOTOR_SMOOTH_SPEED     200          // 平滑运动速度
-#define MOTOR_FAST_SPEED       600          // 快速运动速度
-
-// LEDC通道分配
-#define HEAD_MOTOR_PWM_CHANNEL LEDC_CHANNEL_0
-#define BODY_MOTOR_PWM_CHANNEL LEDC_CHANNEL_1
-#define MOTOR_PWM_TIMER        LEDC_TIMER_1
+// 动作组合参数
+#define IDLE_ACTION_INTERVAL   5000         // 待机动作间隔（5秒）
+#define STEP_ANGLE             5            // 每步角度（度）
+#define NOD_STEPS              3            // 点头步数
+#define SHAKE_STEPS            4            // 摇头步数
 
 // 底盘控制配置
 #define MOTOR_SPEED_MAX 100

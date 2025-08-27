@@ -65,13 +65,14 @@ void EmotionActionController::OnEmotionChanged(const char* emotion, int intensit
                     DelayedAction* action = new DelayedAction{
                         this,
                         rule.action_func,
-                        final_intensity
+                        final_intensity,
+                        rule.delay_ms  // 添加延迟时间
                     };
 
                     // 创建延迟任务
                     xTaskCreate([](void* arg) {
                         DelayedAction* delayed_action = static_cast<DelayedAction*>(arg);
-                        vTaskDelay(pdMS_TO_TICKS(500)); // 固定延迟，也可以从rule中获取
+                        vTaskDelay(pdMS_TO_TICKS(delayed_action->delay_ms)); // 使用正确的延迟时间
 
                         if (delayed_action->controller->motion_enabled_ && delayed_action->controller->motor_) {
                             (delayed_action->controller->motor_->*(delayed_action->action_func))(delayed_action->intensity);

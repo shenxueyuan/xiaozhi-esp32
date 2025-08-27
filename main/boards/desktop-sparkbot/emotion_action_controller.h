@@ -39,6 +39,7 @@ private:
         EmotionActionController* controller;
         void (MotorController::*action_func)(int);
         int intensity;
+        int delay_ms;  // 延迟时间
     };
     static void DelayedActionTask(void* arg);
 };
