@@ -61,7 +61,7 @@ bool Esp32Camera::Capture() {
     ESP_LOGI(TAG, "Camera captured %d frames in %d ms", frames_to_get, int((end_time - start_time) / 1000));
 
     // 显示预览图片
-    auto display = dynamic_cast<LvglDisplay*>(Board::GetInstance().GetDisplay());
+    auto display = Board::GetInstance().GetDisplay();
     if (display != nullptr) {
         auto data = (uint8_t*)heap_caps_malloc(fb_->len, MALLOC_CAP_SPIRAM);
         if (data == nullptr) {
@@ -89,13 +89,13 @@ bool Esp32Camera::SetHMirror(bool enabled) {
         ESP_LOGE(TAG, "Failed to get camera sensor");
         return false;
     }
-    
+
     esp_err_t err = s->set_hmirror(s, enabled);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to set horizontal mirror: %d", err);
         return false;
     }
-    
+
     ESP_LOGI(TAG, "Camera horizontal mirror set to: %s", enabled ? "enabled" : "disabled");
     return true;
 }
@@ -106,36 +106,36 @@ bool Esp32Camera::SetVFlip(bool enabled) {
         ESP_LOGE(TAG, "Failed to get camera sensor");
         return false;
     }
-    
+
     esp_err_t err = s->set_vflip(s, enabled);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to set vertical flip: %d", err);
         return false;
     }
-    
+
     ESP_LOGI(TAG, "Camera vertical flip set to: %s", enabled ? "enabled" : "disabled");
     return true;
 }
 
 /**
  * @brief 将摄像头捕获的图像发送到远程服务器进行AI分析和解释
- * 
+ *
  * 该函数将当前摄像头缓冲区中的图像编码为JPEG格式，并通过HTTP POST请求
  * 以multipart/form-data的形式发送到指定的解释服务器。服务器将根据提供的
  * 问题对图像进行AI分析并返回结果。
- * 
+ *
  * 实现特点：
  * - 使用独立线程编码JPEG，与主线程分离
  * - 采用分块传输编码(chunked transfer encoding)优化内存使用
  * - 通过队列机制实现编码线程和发送线程的数据同步
  * - 支持设备ID、客户端ID和认证令牌的HTTP头部配置
- * 
+ *
  * @param question 要向AI提出的关于图像的问题，将作为表单字段发送
  * @return std::string 服务器返回的JSON格式响应字符串
  *         成功时包含AI分析结果，失败时包含错误信息
  *         格式示例：{"success": true, "result": "分析结果"}
  *                  {"success": false, "message": "错误信息"}
- * 
+ *
  * @note 调用此函数前必须先调用SetExplainUrl()设置服务器URL
  * @note 函数会等待之前的编码线程完成后再开始新的处理
  * @warning 如果摄像头缓冲区为空或网络连接失败，将返回错误信息
@@ -194,7 +194,7 @@ std::string Esp32Camera::Explain(const std::string& question) {
         vQueueDelete(jpeg_queue);
         throw std::runtime_error("Failed to connect to explain URL");
     }
-    
+
     {
         // 第一块：question字段
         std::string question_field;

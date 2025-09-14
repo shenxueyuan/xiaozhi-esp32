@@ -6,6 +6,11 @@
 #include <font_awesome.h>
 #include <img_converters.h>
 
+// 包含自定义LVGL快照配置
+#include "lv_conf/lv_snapshot_conf.h"
+#include "lvgl.h"
+#include "lvgl__lvgl/src/others/snapshot/lv_snapshot.h"
+
 #include "lvgl_display.h"
 #include "board.h"
 #include "application.h"
@@ -203,6 +208,27 @@ void LvglDisplay::UpdateStatusBar(bool update_all) {
 }
 
 void LvglDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
+    DisplayLockGuard lock(this);
+
+    if (image && image->GetLvImage()) {
+        // 创建或获取预览图像容器
+        static lv_obj_t* preview_img = nullptr;
+
+        if (!preview_img) {
+            preview_img = lv_img_create(lv_screen_active());
+            lv_obj_center(preview_img);
+        }
+
+        // 设置图像
+        lv_img_set_src(preview_img, image->GetLvImage());
+        lv_obj_clear_flag(preview_img, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        // 如果没有图像，隐藏预览
+        static lv_obj_t* preview_img = nullptr;
+        if (preview_img) {
+            lv_obj_add_flag(preview_img, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
 }
 
 void LvglDisplay::SetPowerSaveMode(bool on) {

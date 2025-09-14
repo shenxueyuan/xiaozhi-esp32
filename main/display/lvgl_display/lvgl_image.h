@@ -9,6 +9,9 @@ public:
     virtual const lv_img_dsc_t* image_dsc() const = 0;
     virtual bool IsGif() const { return false; }
     virtual ~LvglImage() = default;
+
+    // 获取LVGL图像对象
+    virtual const void* GetLvImage() const { return image_dsc(); }
 };
 
 
