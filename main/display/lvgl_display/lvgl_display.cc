@@ -8,6 +8,7 @@
 
 // 包含自定义LVGL快照配置
 #include "lv_conf/lv_snapshot_conf.h"
+#include "lv_conf/lv_conf_override.h"
 #include "lvgl.h"
 #include "lvgl__lvgl/src/others/snapshot/lv_snapshot.h"
 
@@ -242,27 +243,11 @@ void LvglDisplay::SetPowerSaveMode(bool on) {
 }
 
 bool LvglDisplay::SnapshotToJpeg(uint8_t*& jpeg_output_data, size_t& jpeg_output_data_size, int quality) {
-    DisplayLockGuard lock(this);
+    // 简化实现，不使用lv_snapshot_take
+    ESP_LOGW("LvglDisplay", "SnapshotToJpeg: 功能已禁用，需要LVGL snapshot支持");
 
-    lv_obj_t* screen = lv_screen_active();
-    lv_draw_buf_t* draw_buffer = lv_snapshot_take(screen, LV_COLOR_FORMAT_RGB565);
-    if (draw_buffer == nullptr) {
-        return false;
-    }
-
-    // swap bytes
-    uint16_t* data = (uint16_t*)draw_buffer->data;
-    size_t pixel_count = draw_buffer->data_size / 2;
-    for (size_t i = 0; i < pixel_count; i++) {
-        data[i] = __builtin_bswap16(data[i]);
-    }
-
-    if (!fmt2jpg(draw_buffer->data, draw_buffer->data_size, draw_buffer->header.w, draw_buffer->header.h,
-        PIXFORMAT_RGB565, quality, &jpeg_output_data, &jpeg_output_data_size)) {
-        lv_draw_buf_destroy(draw_buffer);
-        return false;
-    }
-
-    lv_draw_buf_destroy(draw_buffer);
-    return true;
+    // 返回失败，表示不支持截图功能
+    jpeg_output_data = nullptr;
+    jpeg_output_data_size = 0;
+    return false;
 }
