@@ -21,19 +21,17 @@
 - **存储**: 16MB Flash + 8MB PSRAM
 
 ### 新增硬件
-- **头部电机**: 减速电机 + 驱动模块 (GPIO 1,2,3)
-- **身体电机**: 减速电机 + 驱动模块 (GPIO 14,19,20)
+- **头部电机**: 步进电机 + 驱动模块 (GPIO 1,2)
+- **身体电机**: 步进电机 + 驱动模块 (GPIO 14,3)
 
 ## 📋 引脚分配
 
 | 功能 | GPIO | 备注 |
 |------|------|------|
-| 头部电机PWM | GPIO_1 | LEDC通道0 |
-| 头部电机方向1 | GPIO_2 | 方向控制 |
-| 头部电机方向2 | GPIO_3 | 方向控制 |
-| 身体电机PWM | GPIO_14 | LEDC通道1 |
-| 身体电机方向1 | GPIO_19 | 方向控制 |
-| 身体电机方向2 | GPIO_20 | 方向控制 |
+| 头部电机引脚1 | GPIO_1 | 步进控制信号1 |
+| 头部电机引脚2 | GPIO_2 | 步进控制信号2 |
+| 身体电机引脚1 | GPIO_14 | 步进控制信号1 |
+| 身体电机引脚2 | GPIO_3 | 步进控制信号2 |
 
 *其他引脚保持与ESP-SparkBot相同*
 
@@ -92,7 +90,7 @@ idf.py monitor
     "method": "tools/call",
     "params": {
       "name": "self.head.up_down",
-      "arguments": {"angle": 30, "speed": 400}
+      "arguments": {"angle": 30, "speed": 2}
     }
   }
 }
@@ -104,7 +102,7 @@ idf.py monitor
     "method": "tools/call",
     "params": {
       "name": "self.body.left_right",
-      "arguments": {"angle": -45, "speed": 400}
+      "arguments": {"angle": -45, "speed": 1}
     }
   }
 }

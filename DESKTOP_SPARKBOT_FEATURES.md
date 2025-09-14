@@ -11,7 +11,7 @@
 🎨 深色主题适配
 ```
 
-### 2. 双轴机械控制 ✅  
+### 2. 双轴机械控制 ✅
 ```
 🤖 头部上下转动 (-45° ~ +45°)
 🔄 身体左右摆动 (-90° ~ +90°)
@@ -96,7 +96,7 @@
 ```
 DesktopSparkBotBoard (主控制器)
 ├── FullscreenEmojiDisplay (表情显示)
-├── MotorController (电机控制)  
+├── MotorController (电机控制)
 ├── EmotionActionController (情绪联动)
 └── MCP Tools (远程控制)
 ```
@@ -128,7 +128,7 @@ ESP-IDF v5.4.1
 
 ### 响应性能
 - **表情切换延迟**: < 50ms
-- **动作响应时间**: < 100ms  
+- **动作响应时间**: < 100ms
 - **MCP命令延迟**: < 200ms
 - **GIF播放帧率**: 8-30 FPS
 
@@ -157,12 +157,12 @@ SetEmotion("happy", 2);
 SetEmotion("thinking");
 ```
 
-### 直接电机控制  
+### 直接电机控制
 ```cpp
 // 头部向上30度，速度400
 motor_controller_->HeadUp(30, 400);
 
-// 身体向左45度，速度600  
+// 身体向左45度，速度600
 motor_controller_->BodyLeft(45, 600);
 ```
 

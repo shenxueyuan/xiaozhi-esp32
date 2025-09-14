@@ -54,7 +54,7 @@
 
 ##### **基础动作**
 - `HeadUp(speed)` - 头部向上
-- `HeadDown(speed)` - 头部向下  
+- `HeadDown(speed)` - 头部向下
 - `HeadCenter(speed)` - 头部回中
 - `BodyLeft(speed)` - 身体向左
 - `BodyRight(speed)` - 身体向右
@@ -196,7 +196,7 @@
 
 ### 已实现功能 ✅
 - [x] **全屏GIF表情显示系统**
-- [x] **双轴减速电机控制系统**  
+- [x] **双轴减速电机控制系统**
 - [x] **情绪联动动作系统**
 - [x] **MCP远程控制接口**
 - [x] **21种表情名称支持**
