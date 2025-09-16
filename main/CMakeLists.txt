@@ -529,6 +529,12 @@ file(GLOB BOARD_SOURCES
 )
 list(APPEND SOURCES ${BOARD_SOURCES})
 
+# Add EchoEar emote display for ElectronBot
+if("${BOARD_TYPE}" STREQUAL "electron-bot")
+    list(APPEND SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/echoear/emote_display.cc)
+    list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/echoear)
+endif()
+
 # Select audio processor according to Kconfig
 if(CONFIG_USE_AUDIO_PROCESSOR)
     list(APPEND SOURCES "audio/processors/afe_audio_processor.cc")
@@ -681,7 +687,7 @@ spiffs_create_partition_assets(
 )
 endif()
 
-if(CONFIG_BOARD_TYPE_ECHOEAR)
+if(CONFIG_BOARD_TYPE_ECHOEAR OR CONFIG_BOARD_TYPE_ELECTRON_BOT)
 
 idf_build_get_property(build_components BUILD_COMPONENTS)
 foreach(COMPONENT ${build_components})

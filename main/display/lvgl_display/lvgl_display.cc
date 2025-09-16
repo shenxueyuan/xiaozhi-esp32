@@ -243,11 +243,9 @@ void LvglDisplay::SetPowerSaveMode(bool on) {
 }
 
 bool LvglDisplay::SnapshotToJpeg(uint8_t*& jpeg_output_data, size_t& jpeg_output_data_size, int quality) {
-    // 简化实现，不使用lv_snapshot_take
-    ESP_LOGW("LvglDisplay", "SnapshotToJpeg: 功能已禁用，需要LVGL snapshot支持");
-
-    // 返回失败，表示不支持截图功能
+    // 当前禁用LVGL快照功能，直接返回不支持
     jpeg_output_data = nullptr;
     jpeg_output_data_size = 0;
+    ESP_LOGW(TAG, "SnapshotToJpeg is disabled (lv_snapshot not linked)");
     return false;
 }

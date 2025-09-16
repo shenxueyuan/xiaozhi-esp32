@@ -13,7 +13,7 @@
 #include "config.h"
 #include "display/lcd_display.h"
 #include "driver/spi_master.h"
-#include "electron_emoji_display.h"
+#include "emote_display_electron.h"
 #include "movements.h"
 #include "power_manager.h"
 #include "system_reset.h"
@@ -65,12 +65,10 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_handle));
         ESP_ERROR_CHECK(esp_lcd_panel_init(panel_handle));
         ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_handle, true));
-        ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel_handle, true, false));
+        ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel_handle, true, true));
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true));
 
-        display_ = new ElectronEmojiDisplay(io_handle, panel_handle, DISPLAY_WIDTH, DISPLAY_HEIGHT,
-                                            DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X,
-                                            DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+        display_ = new anim::ElectronEmoteDisplay(panel_handle, io_handle);
     }
 
     void InitializeButtons() {
