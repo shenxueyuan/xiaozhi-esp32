@@ -25,12 +25,13 @@ public:
 
     void setEyes(int aaf, bool repeat, int fps);
     void stopEyes();
-    
+
     void Lock();
     void Unlock();
-    
+
     void SetIcon(int asset_id);
     mmap_assets_handle_t GetAssetsHandle() const { return assets_handle_; }
+    esp_lcd_panel_handle_t GetPanel() const { return panel_; }
 
     // Callback functions (public to be accessible from static helper functions)
     static bool OnFlushIoReady(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata, void *user_ctx);
@@ -39,6 +40,7 @@ public:
 private:
     gfx_handle_t engine_handle_;
     mmap_assets_handle_t assets_handle_;
+    esp_lcd_panel_handle_t panel_ = nullptr;
 };
 
 class EmoteDisplay : public Display {
@@ -49,7 +51,7 @@ public:
     virtual void SetEmotion(const char* emotion) override;
     virtual void SetStatus(const char* status) override;
     virtual void SetChatMessage(const char* role, const char* content) override;
-    
+
     anim::EmoteEngine* GetEngine()
     {
         return engine_.get();
@@ -61,6 +63,15 @@ private:
     virtual void Unlock() override;
 
     std::unique_ptr<anim::EmoteEngine> engine_;
+
+    // Scaled AAF player (Plan 1)
+    TaskHandle_t scaled_task_ = nullptr;
+    volatile int current_asset_id_ = MMAP_EMOJI_NORMAL_IDLE_ONE_AAF;
+    volatile int current_fps_ = 20;
+    volatile bool current_repeat_ = true;
+
+    void ScaledLoop();
+    void DrawEyeScaled(int asset_id, int dst_x, int dst_y, int dst_w, int dst_h);
 };
 
 } // namespace anim

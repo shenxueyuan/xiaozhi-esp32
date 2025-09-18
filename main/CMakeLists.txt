@@ -529,6 +529,12 @@ file(GLOB BOARD_SOURCES
 )
 list(APPEND SOURCES ${BOARD_SOURCES})
 
+# If using electron-bot board, also compile echoear emote display for reuse
+if(CONFIG_BOARD_TYPE_ELECTRON_BOT)
+    list(APPEND SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/echoear/emote_display.cc)
+    list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/echoear)
+endif()
+
 # Select audio processor according to Kconfig
 if(CONFIG_USE_AUDIO_PROCESSOR)
     list(APPEND SOURCES "audio/processors/afe_audio_processor.cc")
@@ -699,6 +705,28 @@ spiffs_create_partition_assets(
     FLASH_IN_PROJECT
     MMAP_FILE_SUPPORT_FORMAT ".aaf, ttf, bin"
     IMPORT_INC_PATH ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}
+)
+endif()
+
+# Provide Echoear emoji assets for electron-bot when reusing EmoteDisplay
+if(CONFIG_BOARD_TYPE_ELECTRON_BOT)
+
+idf_build_get_property(build_components BUILD_COMPONENTS)
+foreach(COMPONENT ${build_components})
+    if(COMPONENT MATCHES "esp_emote_gfx" OR COMPONENT MATCHES "espressif2022__esp_emote_gfx")
+        set(EMOTE_GFX_COMPONENT ${COMPONENT})
+        idf_component_get_property(EMOTE_GFX_COMPONENT_PATH ${EMOTE_GFX_COMPONENT} COMPONENT_DIR)
+        set(SPIFFS_DIR "${EMOTE_GFX_COMPONENT_PATH}/emoji_normal")
+        break()
+    endif()
+endforeach()
+
+spiffs_create_partition_assets(
+    assets_A
+    ${SPIFFS_DIR}
+    FLASH_IN_PROJECT
+    MMAP_FILE_SUPPORT_FORMAT ".aaf, ttf, bin"
+    IMPORT_INC_PATH ${CMAKE_CURRENT_SOURCE_DIR}/boards/echoear
 )
 endif()
 
