@@ -48,7 +48,13 @@ private:
     TaskHandle_t wake_word_encode_task_ = nullptr;
     StaticTask_t* wake_word_encode_task_buffer_ = nullptr;
     StackType_t* wake_word_encode_task_stack_ = nullptr;
-    std::deque<std::vector<int16_t>> wake_word_pcm_;
+    // Ring buffer for PCM frames (hot path: zero-allocation)
+    int16_t* pcm_ring_buffer_ = nullptr;         // contiguous buffer: pcm_frames_capacity_ * pcm_frame_samples_
+    int pcm_frame_samples_ = 0;                  // samples per frame from AFE fetch chunk size
+    int pcm_frames_capacity_ = 0;                // number of frames can be stored (e.g., ~1s)
+    int pcm_frames_count_ = 0;                   // current frames stored
+    int pcm_write_index_ = 0;                    // next write slot index
+    std::mutex pcm_ring_mutex_;
     std::deque<std::vector<uint8_t>> wake_word_opus_;
     std::mutex wake_word_mutex_;
     std::condition_variable wake_word_cv_;

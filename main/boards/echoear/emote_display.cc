@@ -41,6 +41,9 @@ static gfx_obj_t* obj_anim_eye_right = nullptr;
 static gfx_obj_t* obj_anim_mic = nullptr;
 static gfx_obj_t* obj_img_icon = nullptr;
 static gfx_image_dsc_t icon_img_dsc;
+// 标记时间/文案可见性（用于仅镜像这两者）
+static bool g_label_time_visible = false;
+static bool g_label_tips_visible = false;
 
 // 方案1全局缩放帧（供 OnFlush 合成，避免与 GFX 刷新打架导致闪烁）
 static uint16_t* g_eye_frame = nullptr; // 持久 DMA 缓冲，存放单眼缩放后的 RGB565
@@ -50,6 +53,14 @@ static int g_eye_left_x = 0;
 static int g_eye_left_y = 0;
 static int g_eye_right_x = 0;
 static int g_eye_right_y = 0;
+// 叠加绘制所需的裁剪临时缓冲，保证子矩形数据连续
+static uint16_t* g_eye_subbuf = nullptr;
+static size_t g_eye_subcap = 0;
+// 全屏离屏合成缓冲（PSRAM），以及行DMA缓冲（内部内存）
+static uint16_t* g_full_frame = nullptr;
+static size_t g_full_frame_cap = 0;
+static uint16_t* g_line_buf = nullptr;
+static size_t g_line_buf_cap = 0;
 
 // Track current icon to determine when to show time
 static int current_icon_type = MMAP_EMOJI_NORMAL_ICON_BATTERY_BIN;
@@ -65,6 +76,8 @@ static void SetUIDisplayMode(UIDisplayMode mode)
     gfx_obj_set_visible(obj_anim_mic, false);
     gfx_obj_set_visible(obj_label_time, false);
     gfx_obj_set_visible(obj_label_tips, false);
+    g_label_time_visible = false;
+    g_label_tips_visible = false;
 
     // Show the selected control
     switch (mode) {
@@ -73,9 +86,11 @@ static void SetUIDisplayMode(UIDisplayMode mode)
         break;
     case UIDisplayMode::SHOW_TIME:
         gfx_obj_set_visible(obj_label_time, true);
+        g_label_time_visible = true;
         break;
     case UIDisplayMode::SHOW_TIPS:
         gfx_obj_set_visible(obj_label_tips, true);
+        g_label_tips_visible = true;
         break;
     }
 }
@@ -128,7 +143,7 @@ static void InitializeGraphics(esp_lcd_panel_handle_t panel, gfx_handle_t* engin
         .buffers = {
             .buf1 = nullptr,
             .buf2 = nullptr,
-            .buf_pixels = DISPLAY_WIDTH * 16,
+            .buf_pixels = DISPLAY_WIDTH * 32,
         },
         .task = GFX_EMOTE_INIT_CONFIG()
     };
@@ -154,8 +169,8 @@ static void InitializeEyeAnimation(gfx_handle_t engine_handle, mmap_assets_handl
 
     // 240x240：左右各放一只眼睛；方案1自渲染，因此隐藏GFX动画对象，避免重叠
     const int gap_between = 10;
-    const int target_eye_w = 100;
-    const int target_eye_h = 100;
+    const int target_eye_w = 115;
+    const int target_eye_h = 115;
     int total_w = target_eye_w * 2 + gap_between;
     int left_x = std::max(0, (DISPLAY_WIDTH - total_w) / 2);
     int right_x = std::min((int)DISPLAY_WIDTH - target_eye_w, left_x + target_eye_w + gap_between);
@@ -344,6 +359,8 @@ void EmoteEngine::SetIcon(int asset_id)
         return;
     }
 
+
+
     Lock();
     SetupImageDescriptor(assets_handle_, &icon_img_dsc, asset_id);
     gfx_img_set_src(obj_img_icon, static_cast<void*>(&icon_img_dsc));
@@ -363,26 +380,170 @@ void EmoteEngine::OnFlush(gfx_handle_t handle, int x_start, int y_start,
 {
     auto* panel = static_cast<esp_lcd_panel_handle_t>(gfx_emote_get_user_data(handle));
     if (panel) {
-        // 先将 GFX 缓冲刷到屏幕
-        esp_lcd_panel_draw_bitmap(panel, x_start, y_start, x_end, y_end, color_data);
+        int fw = x_end - x_start;
+        int fh = y_end - y_start;
+        // 1) 将当前 tile 拷入全屏离屏缓冲
+        size_t full_need = (size_t)DISPLAY_WIDTH * DISPLAY_HEIGHT;
+        if (g_full_frame_cap < full_need) {
+            if (g_full_frame) heap_caps_free(g_full_frame);
+            g_full_frame = (uint16_t*)heap_caps_malloc(full_need * sizeof(uint16_t), MALLOC_CAP_SPIRAM);
+            g_full_frame_cap = full_need;
+        }
+        if (g_full_frame) {
+            for (int row = 0; row < fh; ++row) {
+                memcpy(g_full_frame + (y_start + row) * DISPLAY_WIDTH + x_start,
+                       (const uint16_t*)color_data + row * fw,
+                       (size_t)fw * sizeof(uint16_t));
+            }
 
-        // 再叠加绘制两只眼的缩放帧（若已准备好），避免闪烁
-        if (g_eye_frame && g_eye_w > 0 && g_eye_h > 0) {
-            // 计算与当前 flush 区域的交集，尽量只在可见时绘制
-            int fw = x_end - x_start;
-            int fh = y_end - y_start;
-            // 左眼：使用原坐标（整页由面板做180°旋转）
-            int lx1 = g_eye_left_x, ly1 = g_eye_left_y;
-            int lx2 = lx1 + g_eye_w, ly2 = ly1 + g_eye_h;
-            if (!(lx2 <= x_start || lx1 >= x_end || ly2 <= y_start || ly1 >= y_end)) {
-                esp_lcd_panel_draw_bitmap(panel, lx1, ly1, lx2, ly2, g_eye_frame);
+            // 2) 如果这是最后一个 tile（覆盖到右下角），则叠加左右眼，并在需要时对时间/文案做镜像，然后整屏一次刷新
+            if (x_end >= (int)DISPLAY_WIDTH && y_end >= (int)DISPLAY_HEIGHT) {
+                if (g_eye_frame && g_eye_w > 0 && g_eye_h > 0) {
+                    // 定义时间/文案矩形用于遮罩（防止眼睛覆盖其像素，保证文字在最上层）
+                    auto in_label_region = [&](int px, int py)->bool {
+                        bool in_time = false, in_tips = false;
+                        if (g_label_time_visible) {
+                            int x = (int)(DISPLAY_WIDTH/2 - 70), y = 32, w = 140, h = 46;
+                            in_time = (px >= x && px < x + w && py >= y && py < y + h);
+                        }
+                        if (g_label_tips_visible) {
+                            int x = (int)(DISPLAY_WIDTH/2 - 70), y = 50, w = 140, h = 36;
+                            in_tips = (px >= x && px < x + w && py >= y && py < y + h);
+                        }
+                        return in_time || in_tips;
+                    };
+                    // 左眼覆盖（不镜像）
+                    int lx1 = g_eye_left_x, ly1 = g_eye_left_y;
+                    int lx2 = lx1 + g_eye_w, ly2 = ly1 + g_eye_h;
+                    int ix1 = std::max(lx1, 0);
+                    int iy1 = std::max(ly1, 0);
+                    int ix2 = std::min(lx2, (int)DISPLAY_WIDTH);
+                    int iy2 = std::min(ly2, (int)DISPLAY_HEIGHT);
+                    if (ix1 < ix2 && iy1 < iy2) {
+                        int sub_w = ix2 - ix1;
+                        int sub_h = iy2 - iy1;
+                        int sx0 = ix1 - lx1;
+                        int sy0 = iy1 - ly1;
+                        for (int row = 0; row < sub_h; ++row) {
+                            uint16_t* dst_row = g_full_frame + ((iy1 + row) * DISPLAY_WIDTH + ix1);
+                            const uint16_t* src_row = g_eye_frame + ((sy0 + row) * g_eye_w + sx0);
+                            for (int col = 0; col < sub_w; ++col) {
+                                int px = ix1 + col; int py = iy1 + row;
+                                if (in_label_region(px, py)) { continue; }
+                                uint16_t fg = src_row[col];
+                                uint16_t bg = dst_row[col];
+                                // 边缘检测：与右/下像素差异较大则做50%混合
+                                uint16_t fg_next_x = src_row[std::min(col + 1, sub_w - 1)];
+                                uint16_t fg_next_y = src_row[col];
+                                if (row + 1 < sub_h) fg_next_y = *(src_row + g_eye_w + col);
+                                int drx = (int)(fg >> 11) - (int)(fg_next_x >> 11);
+                                int dgx = (int)((fg >> 5) & 0x3F) - (int)((fg_next_x >> 5) & 0x3F);
+                                int dbx = (int)(fg & 0x1F) - (int)(fg_next_x & 0x1F);
+                                int dry = (int)(fg >> 11) - (int)(fg_next_y >> 11);
+                                int dgy = (int)((fg >> 5) & 0x3F) - (int)((fg_next_y >> 5) & 0x3F);
+                                int dby = (int)(fg & 0x1F) - (int)(fg_next_y & 0x1F);
+                                int edge = (abs(drx) + abs(dgx) + abs(dbx) + abs(dry) + abs(dgy) + abs(dby));
+                                if (edge > 12) { // 阈值：经验值，避免整体模糊
+                                    int r = ((fg >> 11) & 0x1F) + ((bg >> 11) & 0x1F);
+                                    int g = ((fg >> 5) & 0x3F) + ((bg >> 5) & 0x3F);
+                                    int b = (fg & 0x1F) + (bg & 0x1F);
+                                    dst_row[col] = (uint16_t)(((r >> 1) << 11) | ((g >> 1) << 5) | (b >> 1));
+                                } else {
+                                    dst_row[col] = fg;
+                                }
+                            }
+                        }
+                    }
+                    // 右眼覆盖（水平镜像）
+                    int rx1 = g_eye_right_x, ry1 = g_eye_right_y;
+                    int rx2 = rx1 + g_eye_w, ry2 = ry1 + g_eye_h;
+                    int jx1 = std::max(rx1, 0);
+                    int jy1 = std::max(ry1, 0);
+                    int jx2 = std::min(rx2, (int)DISPLAY_WIDTH);
+                    int jy2 = std::min(ry2, (int)DISPLAY_HEIGHT);
+                    if (jx1 < jx2 && jy1 < jy2) {
+                        int sub_w = jx2 - jx1;
+                        int sub_h = jy2 - jy1;
+                        int sx0 = jx1 - rx1;
+                        int sy0 = jy1 - ry1;
+                        for (int row = 0; row < sub_h; ++row) {
+                            uint16_t* dst_row = g_full_frame + ((jy1 + row) * DISPLAY_WIDTH + jx1);
+                            const uint16_t* src_row_base = g_eye_frame + ((sy0 + row) * g_eye_w);
+                            for (int col = 0; col < sub_w; ++col) {
+                                int px = jx1 + col; int py = jy1 + row;
+                                if (in_label_region(px, py)) { continue; }
+                                int sx = sx0 + col;
+                                int sx_m = g_eye_w - 1 - sx; // 水平镜像采样位置
+                                uint16_t fg = src_row_base[sx_m];
+                                uint16_t bg = dst_row[col];
+                                int sx_m_next = (sx_m > 0) ? (sx_m - 1) : sx_m;
+                                uint16_t fg_next_x = src_row_base[sx_m_next];
+                                const uint16_t* src_row_base_next = (row + 1 < sub_h) ? (src_row_base + g_eye_w) : src_row_base;
+                                uint16_t fg_next_y = src_row_base_next[sx_m];
+                                int drx = (int)(fg >> 11) - (int)(fg_next_x >> 11);
+                                int dgx = (int)((fg >> 5) & 0x3F) - (int)((fg_next_x >> 5) & 0x3F);
+                                int dbx = (int)(fg & 0x1F) - (int)(fg_next_x & 0x1F);
+                                int dry = (int)(fg >> 11) - (int)(fg_next_y >> 11);
+                                int dgy = (int)((fg >> 5) & 0x3F) - (int)((fg_next_y >> 5) & 0x3F);
+                                int dby = (int)(fg & 0x1F) - (int)(fg_next_y & 0x1F);
+                                int edge = (abs(drx) + abs(dgx) + abs(dbx) + abs(dry) + abs(dgy) + abs(dby));
+                                if (edge > 12) {
+                                    int r = ((fg >> 11) & 0x1F) + ((bg >> 11) & 0x1F);
+                                    int g = ((fg >> 5) & 0x3F) + ((bg >> 5) & 0x3F);
+                                    int b = (fg & 0x1F) + (bg & 0x1F);
+                                    dst_row[col] = (uint16_t)(((r >> 1) << 11) | ((g >> 1) << 5) | (b >> 1));
+                                } else {
+                                    dst_row[col] = fg;
+                                }
+                            }
+                        }
+                    }
+                }
+                // 仅当时间/文案可见时，对其区域做水平镜像
+                if (g_label_time_visible || g_label_tips_visible) {
+                    // 获取两者的外接矩形（简单起见固定区域：时间在 y≈32、高≈46；文案在 y≈50、高≈36；与 InitializeLabels 对齐）
+                    auto mirror_region = [&](int x, int y, int w, int h) {
+                        int mx1 = std::max(0, x);
+                        int my1 = std::max(0, y);
+                        int mx2 = std::min((int)DISPLAY_WIDTH, x + w);
+                        int my2 = std::min((int)DISPLAY_HEIGHT, y + h);
+                        for (int row = my1; row < my2; ++row) {
+                            uint16_t* line = g_full_frame + row * DISPLAY_WIDTH;
+                            int l = mx1, r = mx2 - 1;
+                            while (l < r) {
+                                uint16_t tmp = line[l];
+                                line[l] = line[r];
+                                line[r] = tmp;
+                                l++; r--;
+                            }
+                        }
+                    };
+                    // 为避免底部裁切，向下各扩展 4px（不越界）
+                    auto clamp_h = [&](int y, int h){ return std::min(h + 4, (int)DISPLAY_HEIGHT - y); };
+                    if (g_label_time_visible) { int y=32; mirror_region( (int)(DISPLAY_WIDTH/2 - 70), y, 140, clamp_h(y,46) ); }
+                    if (g_label_tips_visible) { int y=50; mirror_region( (int)(DISPLAY_WIDTH/2 - 70), y, 140, clamp_h(y,36) ); }
+                }
+
+                // 3) 行缓冲推送整屏（避免 tile 边界缝隙）
+                size_t line_need = (size_t)DISPLAY_WIDTH;
+                if (g_line_buf_cap < line_need) {
+                    if (g_line_buf) heap_caps_free(g_line_buf);
+                    g_line_buf = (uint16_t*)heap_caps_malloc(line_need * sizeof(uint16_t), MALLOC_CAP_DMA);
+                    g_line_buf_cap = line_need;
+                }
+                if (g_line_buf) {
+                    for (int y = 0; y < (int)DISPLAY_HEIGHT; ++y) {
+                        memcpy(g_line_buf, g_full_frame + y * DISPLAY_WIDTH, DISPLAY_WIDTH * sizeof(uint16_t));
+                        esp_lcd_panel_draw_bitmap(panel, 0, y, DISPLAY_WIDTH, y + 1, g_line_buf);
+                    }
+                } else {
+                    // 退化：直接整屏一次刷
+                    esp_lcd_panel_draw_bitmap(panel, 0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT, g_full_frame);
+                }
             }
-            // 右眼：使用原坐标
-            int rx1 = g_eye_right_x, ry1 = g_eye_right_y;
-            int rx2 = rx1 + g_eye_w, ry2 = ry1 + g_eye_h;
-            if (!(rx2 <= x_start || rx1 >= x_end || ry2 <= y_start || ry1 >= y_end)) {
-                esp_lcd_panel_draw_bitmap(panel, rx1, ry1, rx2, ry2, g_eye_frame);
-            }
+        } else {
+            // 无 full frame 时退回原逻辑
+            esp_lcd_panel_draw_bitmap(panel, x_start, y_start, x_end, y_end, color_data);
         }
     }
     gfx_emote_flush_ready(handle, true);
@@ -498,8 +659,8 @@ void EmoteDisplay::Unlock()
 // 方案1：解码-缩放-绘制循环
 void EmoteDisplay::ScaledLoop()
 {
-    const int target_eye_w = 100;
-    const int target_eye_h = 100;
+    const int target_eye_w = 115;
+    const int target_eye_h = 115;
     const int gap_between = 10;
     int last_asset = -1;
     gfx_aaf_format_handle_t fmt = nullptr;
@@ -627,13 +788,44 @@ void EmoteDisplay::ScaledLoop()
                 vTaskDelay(pdMS_TO_TICKS(50));
                 continue;
             }
+            // 使用双线性缩放，缓解像素格栅感
             for (int dy = 0; dy < target_eye_h; ++dy) {
-                int sy = (int)((int64_t)dy * src_h / target_eye_h);
+                int sy_fp = (int)((int64_t)dy * (src_h - 1) * 256 / (target_eye_h - 1));
+                int sy = sy_fp >> 8; int fy = sy_fp & 0xFF;
+                int sy1 = (sy + 1 < src_h) ? sy + 1 : sy;
                 for (int dx = 0; dx < target_eye_w; ++dx) {
-                    int sx = (int)((int64_t)dx * src_w / target_eye_w);
-                    scaled[dy * target_eye_w + dx] = full[sy * src_w + sx];
+                    int sx_fp = (int)((int64_t)dx * (src_w - 1) * 256 / (target_eye_w - 1));
+                    int sx = sx_fp >> 8; int fx = sx_fp & 0xFF;
+                    int sx1 = (sx + 1 < src_w) ? sx + 1 : sx;
+
+                    uint16_t c00 = full[sy * src_w + sx];
+                    uint16_t c10 = full[sy * src_w + sx1];
+                    uint16_t c01 = full[sy1 * src_w + sx];
+                    uint16_t c11 = full[sy1 * src_w + sx1];
+
+                    int r00 = (c00 >> 11) & 0x1F, g00 = (c00 >> 5) & 0x3F, b00 = c00 & 0x1F;
+                    int r10 = (c10 >> 11) & 0x1F, g10 = (c10 >> 5) & 0x3F, b10 = c10 & 0x1F;
+                    int r01 = (c01 >> 11) & 0x1F, g01 = (c01 >> 5) & 0x3F, b01 = c01 & 0x1F;
+                    int r11 = (c11 >> 11) & 0x1F, g11 = (c11 >> 5) & 0x3F, b11 = c11 & 0x1F;
+
+                    int w00 = (256 - fx) * (256 - fy);
+                    int w10 = fx * (256 - fy);
+                    int w01 = (256 - fx) * fy;
+                    int w11 = fx * fy;
+                    int denom = 256 * 256;
+
+                    int r = (r00 * w00 + r10 * w10 + r01 * w01 + r11 * w11 + (denom >> 1)) / denom;
+                    int g = (g00 * w00 + g10 * w10 + g01 * w01 + g11 * w11 + (denom >> 1)) / denom;
+                    int b = (b00 * w00 + b10 * w10 + b01 * w01 + b11 * w11 + (denom >> 1)) / denom;
+
+                    if (r > 31) r = 31;
+                    if (g > 63) g = 63;
+                    if (b > 31) b = 31;
+                    scaled[dy * target_eye_w + dx] = (uint16_t)((r << 11) | (g << 5) | b);
                 }
             }
+
+            // 不做全局模糊，改为在合成阶段进行边缘感知混合以保留细节
 
             // 改为在 OnFlush 做合成，避免与 GFX 刷新抢占导致闪烁
             g_eye_w = target_eye_w;
@@ -645,7 +837,11 @@ void EmoteDisplay::ScaledLoop()
             // 复制一份缩放帧给全局缓冲（双眼用同一帧）
             if (!g_eye_frame || (size_t)(g_eye_w * g_eye_h) > scaled_cap) {
                 if (g_eye_frame) heap_caps_free(g_eye_frame);
-                g_eye_frame = (uint16_t*)heap_caps_malloc((size_t)g_eye_w * (size_t)g_eye_h * sizeof(uint16_t), MALLOC_CAP_DMA);
+                // 优先内部内存，减少 SPI DMA 分块导致的行间缝隙；失败再回退 DMA
+                g_eye_frame = (uint16_t*)heap_caps_malloc((size_t)g_eye_w * (size_t)g_eye_h * sizeof(uint16_t), MALLOC_CAP_INTERNAL);
+                if (!g_eye_frame) {
+                    g_eye_frame = (uint16_t*)heap_caps_malloc((size_t)g_eye_w * (size_t)g_eye_h * sizeof(uint16_t), MALLOC_CAP_DMA);
+                }
             }
             if (g_eye_frame) {
                 memcpy(g_eye_frame, scaled, (size_t)g_eye_w * (size_t)g_eye_h * sizeof(uint16_t));

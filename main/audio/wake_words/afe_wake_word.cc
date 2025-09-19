@@ -10,7 +10,7 @@
 
 AfeWakeWord::AfeWakeWord()
     : afe_data_(nullptr),
-      wake_word_pcm_(),
+      pcm_ring_buffer_(nullptr),
       wake_word_opus_() {
 
     event_group_ = xEventGroupCreate();
@@ -31,6 +31,15 @@ AfeWakeWord::~AfeWakeWord() {
 
     if (models_ != nullptr) {
         esp_srmodel_deinit(models_);
+    }
+
+    if (pcm_ring_buffer_ != nullptr) {
+        heap_caps_free(pcm_ring_buffer_);
+        pcm_ring_buffer_ = nullptr;
+        pcm_frame_samples_ = 0;
+        pcm_frames_capacity_ = 0;
+        pcm_frames_count_ = 0;
+        pcm_write_index_ = 0;
     }
 
     vEventGroupDelete(event_group_);
@@ -77,9 +86,31 @@ bool AfeWakeWord::Initialize(AudioCodec* codec, srmodel_list_t* models_list) {
     afe_config->afe_perferred_core = 1;
     afe_config->afe_perferred_priority = 1;
     afe_config->memory_alloc_mode = AFE_MEMORY_ALLOC_MORE_PSRAM;
-    
+
     afe_iface_ = esp_afe_handle_from_config(afe_config);
     afe_data_ = afe_iface_->create_from_config(afe_config);
+
+    // Initialize ring buffer for PCM frames (1s by default) after AFE is created
+    {
+        std::lock_guard<std::mutex> lock(pcm_ring_mutex_);
+        if (pcm_ring_buffer_ == nullptr) {
+            int fetch_size = afe_iface_->get_fetch_chunksize(afe_data_);
+            pcm_frame_samples_ = fetch_size;
+            pcm_frames_capacity_ = 1000 / 30;
+            size_t bytes = (size_t)pcm_frame_samples_ * pcm_frames_capacity_ * sizeof(int16_t);
+            pcm_ring_buffer_ = (int16_t*)heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM);
+            if (pcm_ring_buffer_ == nullptr) {
+                // fallback to internal memory with half capacity
+                pcm_frames_capacity_ = pcm_frames_capacity_ / 2;
+                if (pcm_frames_capacity_ < 8) pcm_frames_capacity_ = 8;
+                bytes = (size_t)pcm_frame_samples_ * pcm_frames_capacity_ * sizeof(int16_t);
+                pcm_ring_buffer_ = (int16_t*)heap_caps_malloc(bytes, MALLOC_CAP_INTERNAL);
+            }
+            assert(pcm_ring_buffer_ != nullptr);
+            pcm_frames_count_ = 0;
+            pcm_write_index_ = 0;
+        }
+    }
 
     xTaskCreate([](void* arg) {
         auto this_ = (AfeWakeWord*)arg;
@@ -148,11 +179,24 @@ void AfeWakeWord::AudioDetectionTask() {
 }
 
 void AfeWakeWord::StoreWakeWordData(const int16_t* data, size_t samples) {
-    // store audio data to wake_word_pcm_
-    wake_word_pcm_.emplace_back(std::vector<int16_t>(data, data + samples));
-    // keep about 2 seconds of data, detect duration is 30ms (sample_rate == 16000, chunksize == 512)
-    while (wake_word_pcm_.size() > 2000 / 30) {
-        wake_word_pcm_.pop_front();
+    if (pcm_ring_buffer_ == nullptr || pcm_frame_samples_ == 0 || pcm_frames_capacity_ == 0) {
+        return;
+    }
+    // Only accept exact frame size to keep alignment
+    if ((int)samples != pcm_frame_samples_) {
+        samples = std::min<size_t>(samples, (size_t)pcm_frame_samples_);
+    }
+    try {
+        std::lock_guard<std::mutex> lock(pcm_ring_mutex_);
+        int write_index = pcm_write_index_;
+        int16_t* dst = pcm_ring_buffer_ + (size_t)write_index * pcm_frame_samples_;
+        memcpy(dst, data, samples * sizeof(int16_t));
+        pcm_write_index_ = (pcm_write_index_ + 1) % pcm_frames_capacity_;
+        if (pcm_frames_count_ < pcm_frames_capacity_) {
+            pcm_frames_count_++;
+        }
+    } catch (...) {
+        // Best effort: drop this frame silently to guarantee stability
     }
 }
 
@@ -176,15 +220,40 @@ void AfeWakeWord::EncodeWakeWordData() {
             encoder->SetComplexity(0); // 0 is the fastest
 
             int packets = 0;
-            for (auto& pcm: this_->wake_word_pcm_) {
-                encoder->Encode(std::move(pcm), [this_](std::vector<uint8_t>&& opus) {
-                    std::lock_guard<std::mutex> lock(this_->wake_word_mutex_);
-                    this_->wake_word_opus_.emplace_back(std::move(opus));
-                    this_->wake_word_cv_.notify_all();
-                });
-                packets++;
+            // Copy ring buffer to a local linear snapshot to avoid holding lock during encode
+            std::vector<int16_t> snapshot;
+            int frames_to_read = 0;
+            int start_index = 0;
+            {
+                std::lock_guard<std::mutex> lock(this_->pcm_ring_mutex_);
+                frames_to_read = this_->pcm_frames_count_;
+                if (frames_to_read > 0) {
+                    start_index = (this_->pcm_write_index_ - frames_to_read + this_->pcm_frames_capacity_) % this_->pcm_frames_capacity_;
+                    snapshot.resize((size_t)frames_to_read * this_->pcm_frame_samples_);
+                    for (int i = 0; i < frames_to_read; ++i) {
+                        int idx = (start_index + i) % this_->pcm_frames_capacity_;
+                        const int16_t* src = this_->pcm_ring_buffer_ + (size_t)idx * this_->pcm_frame_samples_;
+                        int16_t* dst = snapshot.data() + (size_t)i * this_->pcm_frame_samples_;
+                        memcpy(dst, src, (size_t)this_->pcm_frame_samples_ * sizeof(int16_t));
+                    }
+                }
             }
-            this_->wake_word_pcm_.clear();
+
+            try {
+                // Encode snapshot by frames
+                for (int i = 0; i < frames_to_read; ++i) {
+                    std::vector<int16_t> frame(this_->pcm_frame_samples_);
+                    memcpy(frame.data(), snapshot.data() + (size_t)i * this_->pcm_frame_samples_, (size_t)this_->pcm_frame_samples_ * sizeof(int16_t));
+                    encoder->Encode(std::move(frame), [this_](std::vector<uint8_t>&& opus) {
+                        std::lock_guard<std::mutex> lock(this_->wake_word_mutex_);
+                        this_->wake_word_opus_.emplace_back(std::move(opus));
+                        this_->wake_word_cv_.notify_all();
+                    });
+                    packets++;
+                }
+            } catch (...) {
+                // Best effort: on OOM, signal end and exit gracefully
+            }
 
             auto end_time = esp_timer_get_time();
             ESP_LOGI(TAG, "Encode wake word opus %d packets in %ld ms", packets, (long)((end_time - start_time) / 1000));
