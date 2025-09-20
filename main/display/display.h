@@ -6,7 +6,7 @@
 // 前向声明
 class LvglImage;
 
-#ifdef LVGL_VERSION_MAJOR
+#ifndef CONFIG_USE_EMOTE_MESSAGE_STYLE
 #define HAVE_LVGL 1
 #include <lvgl.h>
 #endif
@@ -43,7 +43,7 @@ public:
     virtual void UpdateStatusBar(bool update_all = false);
     virtual void SetPowerSaveMode(bool on);
     virtual void SetPreviewImage(std::unique_ptr<LvglImage> image) {}
-    virtual bool SnapshotToJpeg(uint8_t*& jpeg_output_data, size_t& jpeg_output_size, int quality = 80) { return false; }
+    virtual bool SnapshotToJpeg(std::string& jpeg_data, int quality = 80) { return false; }
 
     inline int width() const { return width_; }
     inline int height() const { return height_; }
