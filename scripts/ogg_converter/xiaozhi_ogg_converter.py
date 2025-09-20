@@ -107,7 +107,7 @@ class AudioConverterApp:
 
     def select_files(self):
         file_types = [
-            ("音频文件", "*.wav *.mogg *.ogg *.flac") if self.mode.get() == "audio_to_ogg" 
+            ("音频文件", "*.mp3 *.wav *.mogg *.ogg *.flac") if self.mode.get() == "audio_to_ogg" 
             else ("ogg文件", "*.ogg")
         ]
         
